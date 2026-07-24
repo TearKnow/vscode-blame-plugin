@@ -13,14 +13,12 @@
 
 ## 安装（VSIX）
 
-1. 扩展面板 → `...` → **Install from VSIX…**
-2. 选择 `git-blame-annotate-0.3.20.vsix`
-3. **Developer: Reload Window**
+1. command+shift+p搜索“install from VSIX”选择文件
+2. command+shift+p搜素“reload window“
 
 ## 本地开发 / 打包
 
-1. 先把 `package.json` 里的 `"publisher"` 从 `"local"` 改成有效字符串，否则 vsce 会拒绝打包
-2. 然后执行：
+1. 然后执行：
 
 ```bash
 npm install
@@ -28,4 +26,4 @@ npm run compile
 npx @vscode/vsce package --no-dependencies --allow-missing-repository
 ```
 
-3. 成功后会在项目根目录生成 `git-blame-annotate-<version>.vsix`
+2. 成功后会在项目根目录生成 `git-blame-annotate-<version>.vsix`
