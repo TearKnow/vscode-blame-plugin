@@ -14,7 +14,7 @@
 ## 安装（VSIX）
 
 1. 扩展面板 → `...` → **Install from VSIX…**
-2. 选择 `git-blame-annotate-0.3.19.vsix`
+2. 选择 `git-blame-annotate-0.3.20.vsix`
 3. **Developer: Reload Window**
 
 ## 本地开发 / 打包

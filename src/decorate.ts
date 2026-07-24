@@ -115,10 +115,17 @@ export function registerBlameHover(isEnabledUri: (uri: string) => boolean): vsco
 }
 
 function hoverMarkdown(blame: BlameLine): vscode.MarkdownString {
-  const time = blame.authorTime ? new Date(blame.authorTime).toLocaleString() : ''
+  const time = blame.authorTime ? formatDateTime(blame.authorTime) : ''
   const head = [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``]
     .filter(Boolean)
     .join(' · ')
   const summary = blame.summary.trim()
   return new vscode.MarkdownString(summary ? `${head}  \n${summary}` : head)
+}
+
+/** Y-m-d H:i:s，如 2026-07-24 14:24:28 */
+function formatDateTime(ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
