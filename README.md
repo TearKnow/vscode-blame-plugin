@@ -12,7 +12,7 @@
 ## 安装（VSIX）
 
 1. 扩展面板 → `...` → **Install from VSIX…**
-2. 选择仓库里的 `git-blame-annotate-*.vsix`（当前为 `0.3.14`）
+2. 选择仓库里的 `git-blame-annotate-*.vsix`（当前为 `0.3.15`）
 3. 命令面板执行 **Developer: Reload Window**
 
 ## 本地开发
