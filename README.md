@@ -19,8 +19,13 @@
 
 ## 本地开发 / 打包
 
+1. 先把 `package.json` 里的 `"publisher"` 从 `"local"` 改成有效字符串，否则 vsce 会拒绝打包
+2. 然后执行：
+
 ```bash
 npm install
 npm run compile
 npx @vscode/vsce package --no-dependencies --allow-missing-repository
 ```
+
+3. 成功后会在项目根目录生成 `git-blame-annotate-<version>.vsix`
