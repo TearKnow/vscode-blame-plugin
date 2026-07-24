@@ -3,7 +3,7 @@ import type { BlameLine } from './blame'
 import { HEAT_LEVELS, heatBorder, heatLevel } from './colors'
 
 /** 左边框色条：编辑时不跟光标，也不会一改就闪躲 */
-const BAR_PX = 18
+const BAR_PX = 9
 
 const blameCache = new Map<string, Map<number, BlameLine>>()
 

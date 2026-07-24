@@ -2,7 +2,7 @@
   "name": "git-blame-annotate",
   "displayName": "Git Blame Annotate",
   "description": "行首 Blame 热力色条；编辑时保持显示，保存后刷新；悬停出行首 Git 信息",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
