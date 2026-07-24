@@ -1,150 +1,105 @@
 import * as vscode from 'vscode'
 import type { BlameLine } from './blame'
-import { computeHeatLevel, heatColors } from './colors'
-
-const WEEKDAYS_ZH = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+import { HEAT_LEVELS, heatBorder, heatLevel, iconSlot } from './colors'
 
 export class BlameDecorator {
-  private readonly decorationTypes = new Map<number, vscode.TextEditorDecorationType>()
-  private active = false
-  private disposing = false
+  private readonly types: vscode.TextEditorDecorationType[] = []
+  private readonly extensionUri: vscode.Uri
+  private dark = false
+  private ready = false
 
-  isActive(): boolean {
-    return this.active
+  constructor(extensionUri: vscode.Uri) {
+    this.extensionUri = extensionUri
   }
 
-  clear(): void {
-    for (const type of this.decorationTypes.values()) {
-      type.dispose()
+  clear(editor?: vscode.TextEditor): void {
+    if (!editor) {
+      return
     }
-    this.decorationTypes.clear()
-    this.active = false
+    for (const type of this.types) {
+      editor.setDecorations(type, [])
+    }
   }
 
   dispose(): void {
-    this.disposing = true
-    this.clear()
+    for (const type of this.types) {
+      type.dispose()
+    }
+    this.types.length = 0
+    this.ready = false
   }
 
-  async apply(editor: vscode.TextEditor, blameLines: BlameLine[]): Promise<void> {
-    if (this.disposing) {
-      return
-    }
-
-    this.clear()
-
-    const config = vscode.workspace.getConfiguration('gitBlameAnnotate')
-    const locale = config.get<string>('dateLocale', 'zh-CN')
-    const maxAuthorLength = config.get<number>('maxAuthorLength', 16)
-    const heatLevels = Math.max(3, Math.min(16, config.get<number>('heatLevels', 8)))
-    const darkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark
+  apply(editor: vscode.TextEditor, blameLines: BlameLine[]): void {
+    const dark =
+      vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark
       || vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.HighContrast
+    this.ensureTypes(dark)
 
     const times = blameLines.map((b) => b.authorTime).filter((t) => t > 0)
-    const minTime = times.length ? Math.min(...times) : 0
-    const maxTime = times.length ? Math.max(...times) : 0
+    const min = times.length ? Math.min(...times) : 0
+    const max = times.length ? Math.max(...times) : 0
 
-    // 按热力档位分组 ranges
-    const groups = new Map<number, vscode.DecorationOptions[]>()
-    const labelWidth = estimateLabelWidth(blameLines, locale, maxAuthorLength)
+    const groups: vscode.DecorationOptions[][] = Array.from({ length: HEAT_LEVELS }, () => [])
+    const lineCount = editor.document.lineCount
 
     for (const blame of blameLines) {
       const lineIndex = blame.line - 1
-      if (lineIndex < 0 || lineIndex >= editor.document.lineCount) {
+      if (lineIndex < 0 || lineIndex >= lineCount) {
         continue
       }
 
-      const level = computeHeatLevel(blame.authorTime, minTime, maxTime, heatLevels)
-      const colors = heatColors(level, heatLevels, darkTheme)
-      const label = formatLabel(blame, locale, maxAuthorLength).padEnd(labelWidth, ' ')
-      const range = new vscode.Range(lineIndex, 0, lineIndex, 0)
-
-      const hoverLines = [
-        `**${blame.author}**`,
-        formatHoverDate(blame.authorTime, locale),
-        `\`${blame.commit.slice(0, 8)}\``,
-      ]
-      if (blame.summary.trim()) {
-        hoverLines.push(blame.summary.trim())
-      }
-
-      const options: vscode.DecorationOptions = {
-        range,
-        renderOptions: {
-          before: {
-            contentText: ` ${label} `,
-            color: colors.foreground,
-            backgroundColor: colors.background,
-            margin: '0 8px 0 0',
-            width: `${labelWidth + 2}ch`,
-          },
-        },
-        hoverMessage: new vscode.MarkdownString(hoverLines.join('  \n')),
-      }
-
-      const list = groups.get(level) ?? []
-      list.push(options)
-      groups.set(level, list)
-    }
-
-    for (const [level, options] of groups) {
-      const colors = heatColors(level, heatLevels, darkTheme)
-      const type = vscode.window.createTextEditorDecorationType({
-        before: {
-          color: colors.foreground,
-          backgroundColor: colors.background,
-        },
+      const level = heatLevel(blame.authorTime, min, max)
+      const end = Math.min(1, editor.document.lineAt(lineIndex).text.length)
+      groups[level].push({
+        range: new vscode.Range(lineIndex, 0, lineIndex, end),
+        hoverMessage: hoverText(blame),
       })
-      this.decorationTypes.set(level, type)
-      editor.setDecorations(type, options)
     }
 
-    this.active = true
+    for (let level = 0; level < HEAT_LEVELS; level += 1) {
+      editor.setDecorations(this.types[level], groups[level])
+    }
+  }
+
+  private ensureTypes(dark: boolean): void {
+    if (this.ready && this.dark === dark) {
+      return
+    }
+    for (const type of this.types) {
+      type.dispose()
+    }
+    this.types.length = 0
+    this.dark = dark
+    this.ready = true
+
+    const theme = dark ? 'dark' : 'light'
+    for (let level = 0; level < HEAT_LEVELS; level += 1) {
+      const icon = vscode.Uri.joinPath(
+        this.extensionUri,
+        'media',
+        'gutter',
+        theme,
+        `heat-${iconSlot(level)}.svg`,
+      )
+      this.types.push(
+        vscode.window.createTextEditorDecorationType({
+          gutterIconPath: icon,
+          gutterIconSize: '100%',
+          isWholeLine: true,
+          borderWidth: '0 0 0 3px',
+          borderStyle: 'solid',
+          borderColor: heatBorder(level, dark),
+        }),
+      )
+    }
   }
 }
 
-function formatLabel(blame: BlameLine, locale: string, maxAuthorLength: number): string {
-  const datePart = formatDatePart(blame.authorTime, locale)
-  const author = truncate(blame.author || 'unknown', maxAuthorLength)
-  return `${datePart}  ${author}`
-}
-
-function formatDatePart(authorTime: number, locale: string): string {
-  if (!authorTime) {
-    return '????/??/??'
-  }
-  const d = new Date(authorTime)
-  const y = d.getFullYear()
-  const m = d.getMonth() + 1
-  const day = d.getDate()
-  const weekday = locale.startsWith('zh')
-    ? WEEKDAYS_ZH[d.getDay()]
-    : d.toLocaleDateString(locale, { weekday: 'short' })
-  return `${y}/${m}/${day} ${weekday}`
-}
-
-function formatHoverDate(authorTime: number, locale: string): string {
-  if (!authorTime) {
-    return ''
-  }
-  return new Date(authorTime).toLocaleString(locale)
-}
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) {
-    return text
-  }
-  return `${text.slice(0, Math.max(1, max - 1))}…`
-}
-
-function estimateLabelWidth(
-  blameLines: BlameLine[],
-  locale: string,
-  maxAuthorLength: number,
-): number {
-  let max = 0
-  for (const blame of blameLines) {
-    max = Math.max(max, formatLabel(blame, locale, maxAuthorLength).length)
-  }
-  return Math.max(max, 20)
+function hoverText(blame: BlameLine): vscode.MarkdownString {
+  const time = blame.authorTime
+    ? new Date(blame.authorTime).toLocaleString()
+    : ''
+  return new vscode.MarkdownString(
+    [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``].filter(Boolean).join('  \n'),
+  )
 }

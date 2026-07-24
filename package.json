@@ -1,18 +1,18 @@
 {
   "name": "git-blame-annotate",
   "displayName": "Git Blame Annotate",
-  "description": "PhpStorm 风格的行首 Git Blame 注解：行号右键开关，越新颜色越深",
-  "version": "0.1.2",
+  "description": "行号左侧 Blame 热力色块；悬停显示作者/时间/commit；保存后刷新",
+  "version": "0.3.0",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "SCM Providers",
     "Other"
   ],
   "activationEvents": [
-    "onCommand:gitBlameAnnotate.toggle"
+    "onCommand:gitBlameAnnotate.toggle",
+    "onCommand:gitBlameAnnotate.hide"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -20,11 +20,6 @@
       {
         "command": "gitBlameAnnotate.toggle",
         "title": "切换 Git Blame 注解",
-        "category": "Git Blame 注解"
-      },
-      {
-        "command": "gitBlameAnnotate.show",
-        "title": "显示 Git Blame 注解",
         "category": "Git Blame 注解"
       },
       {
@@ -51,40 +46,7 @@
           "command": "gitBlameAnnotate.toggle",
           "group": "scm@1"
         }
-      ],
-      "commandPalette": [
-        {
-          "command": "gitBlameAnnotate.toggle"
-        },
-        {
-          "command": "gitBlameAnnotate.show"
-        },
-        {
-          "command": "gitBlameAnnotate.hide"
-        }
       ]
-    },
-    "configuration": {
-      "title": "Git Blame Annotate",
-      "properties": {
-        "gitBlameAnnotate.dateLocale": {
-          "type": "string",
-          "default": "zh-CN",
-          "description": "日期与星期的 locale（如 zh-CN、en-US）"
-        },
-        "gitBlameAnnotate.maxAuthorLength": {
-          "type": "number",
-          "default": 16,
-          "description": "作者名最大显示长度"
-        },
-        "gitBlameAnnotate.heatLevels": {
-          "type": "number",
-          "default": 8,
-          "minimum": 3,
-          "maximum": 16,
-          "description": "新旧热力分档数量（越多过渡越细）"
-        }
-      }
     }
   },
   "scripts": {

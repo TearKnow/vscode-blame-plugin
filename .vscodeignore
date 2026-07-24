@@ -1,10 +1,13 @@
 .vscode/**
 .vscode-test/**
 src/**
+scripts/**
 .gitignore
 tsconfig.json
 **/*.map
 **/*.ts
 !out/**/*.js
 node_modules/**
+docs/**
 *.md
+!README.md

@@ -2,63 +2,46 @@ import * as vscode from 'vscode'
 import { blameFile } from './blame'
 import { BlameDecorator } from './decorate'
 
-const ACTIVE_KEY = 'gitBlameAnnotate.active'
+const CTX = 'gitBlameAnnotate.active'
 
 let decorator: BlameDecorator
-let enabledForEditor: WeakMap<vscode.TextEditor, boolean>
-let statusBar: vscode.StatusBarItem
+let enabled = new WeakMap<vscode.TextEditor, boolean>()
+let status: vscode.StatusBarItem
+let gen = 0
 
 export function activate(context: vscode.ExtensionContext): void {
-  decorator = new BlameDecorator()
-  enabledForEditor = new WeakMap()
-  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
-  statusBar.command = 'gitBlameAnnotate.toggle'
-  statusBar.tooltip = '切换 Git Blame Annotate'
+  decorator = new BlameDecorator(context.extensionUri)
+  status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
+  status.command = 'gitBlameAnnotate.toggle'
+  status.tooltip = '切换 Git Blame 注解'
 
   context.subscriptions.push(
     decorator,
-    statusBar,
-    vscode.commands.registerCommand('gitBlameAnnotate.toggle', () => toggle()),
-    vscode.commands.registerCommand('gitBlameAnnotate.show', () => setActive(true)),
-    vscode.commands.registerCommand('gitBlameAnnotate.hide', () => setActive(false)),
+    status,
+    vscode.commands.registerCommand('gitBlameAnnotate.toggle', () => {
+      void toggle()
+    }),
+    vscode.commands.registerCommand('gitBlameAnnotate.hide', () => {
+      void setActive(false)
+    }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      void onEditorChanged(editor)
+      void onEditor(editor)
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       const editor = vscode.window.activeTextEditor
-      if (editor && editor.document === doc && enabledForEditor.get(editor)) {
-        void refresh(editor)
-      }
-    }),
-    vscode.workspace.onDidChangeTextDocument((event) => {
-      const editor = vscode.window.activeTextEditor
-      if (!editor || editor.document !== event.document) {
-        return
-      }
-      if (!enabledForEditor.get(editor)) {
-        return
-      }
-      if (event.contentChanges.length === 0) {
-        return
-      }
-      // 编辑中立刻清掉，避免行首注解与代码错位
-      decorator.clear()
-      updateStatusBar(true)
-      // 撤销到干净状态时自动恢复
-      if (!event.document.isDirty) {
+      if (editor?.document === doc && enabled.get(editor)) {
         void refresh(editor)
       }
     }),
     vscode.window.onDidChangeActiveColorTheme(() => {
       const editor = vscode.window.activeTextEditor
-      if (editor && enabledForEditor.get(editor)) {
+      if (editor && enabled.get(editor)) {
         void refresh(editor)
       }
     }),
   )
 
-  void setContext(false)
-  updateStatusBar(false)
+  void vscode.commands.executeCommand('setContext', CTX, false)
 }
 
 export function deactivate(): void {
@@ -70,8 +53,7 @@ async function toggle(): Promise<void> {
   if (!editor) {
     return
   }
-  const next = !enabledForEditor.get(editor)
-  await setActive(next)
+  await setActive(!enabled.get(editor))
 }
 
 async function setActive(active: boolean): Promise<void> {
@@ -81,79 +63,66 @@ async function setActive(active: boolean): Promise<void> {
   }
 
   if (!active) {
-    enabledForEditor.set(editor, false)
-    decorator.clear()
-    await setContext(false)
-    updateStatusBar(false)
+    gen += 1
+    enabled.set(editor, false)
+    decorator.clear(editor)
+    await vscode.commands.executeCommand('setContext', CTX, false)
+    status.hide()
     return
   }
 
-  enabledForEditor.set(editor, true)
-  await refresh(editor)
+  // 立刻响应右键，再后台跑 blame（避免卡顿感）
+  enabled.set(editor, true)
+  await vscode.commands.executeCommand('setContext', CTX, true)
+  status.text = '$(sync~spin) Blame…'
+  status.show()
+  void refresh(editor)
 }
 
-async function onEditorChanged(editor: vscode.TextEditor | undefined): Promise<void> {
+async function onEditor(editor: vscode.TextEditor | undefined): Promise<void> {
   if (!editor) {
-    decorator.clear()
-    await setContext(false)
-    updateStatusBar(false)
+    await vscode.commands.executeCommand('setContext', CTX, false)
+    status.hide()
     return
   }
-
-  if (enabledForEditor.get(editor)) {
-    await refresh(editor)
+  if (enabled.get(editor)) {
+    status.text = '$(sync~spin) Blame…'
+    status.show()
+    void refresh(editor)
   } else {
-    decorator.clear()
-    await setContext(false)
-    updateStatusBar(false)
+    decorator.clear(editor)
+    await vscode.commands.executeCommand('setContext', CTX, false)
+    status.hide()
   }
 }
 
 async function refresh(editor: vscode.TextEditor): Promise<void> {
-  const filePath = editor.document.uri.fsPath
+  const my = ++gen
   if (editor.document.uri.scheme !== 'file') {
-    vscode.window.showWarningMessage('Git Blame Annotate 仅支持本地文件')
-    enabledForEditor.set(editor, false)
-    await setContext(false)
-    updateStatusBar(false)
+    enabled.set(editor, false)
+    await vscode.commands.executeCommand('setContext', CTX, false)
+    status.hide()
+    vscode.window.showWarningMessage('Git Blame 仅支持本地文件')
     return
   }
 
   try {
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Window,
-        title: 'Git Blame Annotate',
-      },
-      async () => {
-        const lines = await blameFile(filePath)
-        if (!enabledForEditor.get(editor)) {
-          return
-        }
-        await decorator.apply(editor, lines)
-        await setContext(true)
-        updateStatusBar(true)
-      },
-    )
+    const lines = await blameFile(editor.document.uri.fsPath)
+    if (my !== gen || !enabled.get(editor)) {
+      return
+    }
+    decorator.apply(editor, lines)
+    status.text = '$(git-commit) Blame On'
+    status.show()
   } catch (error) {
-    enabledForEditor.set(editor, false)
-    decorator.clear()
-    await setContext(false)
-    updateStatusBar(false)
-    const message = error instanceof Error ? error.message : String(error)
-    vscode.window.showErrorMessage(`Git Blame 失败: ${message}`)
-  }
-}
-
-async function setContext(active: boolean): Promise<void> {
-  await vscode.commands.executeCommand('setContext', ACTIVE_KEY, active)
-}
-
-function updateStatusBar(active: boolean): void {
-  if (active) {
-    statusBar.text = '$(git-commit) Blame On'
-    statusBar.show()
-  } else {
-    statusBar.hide()
+    if (my !== gen) {
+      return
+    }
+    enabled.set(editor, false)
+    decorator.clear(editor)
+    await vscode.commands.executeCommand('setContext', CTX, false)
+    status.hide()
+    const msg = error instanceof Error ? error.message : String(error)
+    vscode.window.showErrorMessage(`Git Blame 失败: ${msg}`)
   }
 }
