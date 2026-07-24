@@ -9,6 +9,7 @@ export interface BlameLine {
   commit: string
   author: string
   authorTime: number
+  summary: string
 }
 
 export async function blameFile(filePath: string): Promise<BlameLine[]> {
@@ -27,7 +28,7 @@ export async function blameFile(filePath: string): Promise<BlameLine[]> {
 function parsePorcelain(stdout: string): BlameLine[] {
   const rows = stdout.split(/\r?\n/)
   const result: BlameLine[] = []
-  const meta = new Map<string, { author: string; authorTime: number }>()
+  const meta = new Map<string, { author: string; authorTime: number; summary: string }>()
 
   let i = 0
   while (i < rows.length) {
@@ -43,6 +44,7 @@ function parsePorcelain(stdout: string): BlameLine[] {
 
     let author = meta.get(commit)?.author ?? 'unknown'
     let authorTime = meta.get(commit)?.authorTime ?? 0
+    let summary = meta.get(commit)?.summary ?? ''
 
     while (i < rows.length && !rows[i].startsWith('\t')) {
       const row = rows[i]
@@ -50,6 +52,8 @@ function parsePorcelain(stdout: string): BlameLine[] {
         author = row.slice(7)
       } else if (row.startsWith('author-time ')) {
         authorTime = Number(row.slice(12)) * 1000
+      } else if (row.startsWith('summary ')) {
+        summary = row.slice(8)
       }
       i += 1
     }
@@ -57,8 +61,8 @@ function parsePorcelain(stdout: string): BlameLine[] {
       i += 1
     }
 
-    meta.set(commit, { author, authorTime })
-    result.push({ line, commit, author, authorTime })
+    meta.set(commit, { author, authorTime, summary })
+    result.push({ line, commit, author, authorTime, summary })
   }
 
   return result

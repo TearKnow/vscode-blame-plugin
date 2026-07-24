@@ -1,4 +1,4 @@
-/** 热力档位数（越少装饰类型越少，越快） */
+/** 热力档位数 */
 export const HEAT_LEVELS = 6
 
 /** 0 = 最新（最深），levels-1 = 最旧（最浅） */
@@ -15,9 +15,4 @@ export function heatBorder(level: number, dark: boolean): string {
   const t = level / (HEAT_LEVELS - 1)
   const a = (0.95 - t * 0.55).toFixed(3)
   return dark ? `rgba(96, 165, 250, ${a})` : `rgba(37, 99, 235, ${a})`
-}
-
-/** 打包的 SVG 档位（0–15 映射到 6 档） */
-export function iconSlot(level: number): number {
-  return Math.round((level / (HEAT_LEVELS - 1)) * 15)
 }

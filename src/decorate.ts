@@ -1,16 +1,11 @@
 import * as vscode from 'vscode'
 import type { BlameLine } from './blame'
-import { HEAT_LEVELS, heatBorder, heatLevel, iconSlot } from './colors'
+import { HEAT_LEVELS, heatBorder, heatLevel } from './colors'
 
 export class BlameDecorator {
   private readonly types: vscode.TextEditorDecorationType[] = []
-  private readonly extensionUri: vscode.Uri
   private dark = false
   private ready = false
-
-  constructor(extensionUri: vscode.Uri) {
-    this.extensionUri = extensionUri
-  }
 
   clear(editor?: vscode.TextEditor): void {
     if (!editor) {
@@ -72,21 +67,11 @@ export class BlameDecorator {
     this.dark = dark
     this.ready = true
 
-    const theme = dark ? 'dark' : 'light'
     for (let level = 0; level < HEAT_LEVELS; level += 1) {
-      const icon = vscode.Uri.joinPath(
-        this.extensionUri,
-        'media',
-        'gutter',
-        theme,
-        `heat-${iconSlot(level)}.svg`,
-      )
       this.types.push(
         vscode.window.createTextEditorDecorationType({
-          gutterIconPath: icon,
-          gutterIconSize: '100%',
           isWholeLine: true,
-          borderWidth: '0 0 0 3px',
+          borderWidth: '0 0 0 14px',
           borderStyle: 'solid',
           borderColor: heatBorder(level, dark),
         }),
@@ -96,10 +81,10 @@ export class BlameDecorator {
 }
 
 function hoverText(blame: BlameLine): vscode.MarkdownString {
-  const time = blame.authorTime
-    ? new Date(blame.authorTime).toLocaleString()
-    : ''
-  return new vscode.MarkdownString(
-    [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``].filter(Boolean).join('  \n'),
-  )
+  const time = blame.authorTime ? new Date(blame.authorTime).toLocaleString() : ''
+  const lines = [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``]
+  if (blame.summary.trim()) {
+    lines.push(blame.summary.trim())
+  }
+  return new vscode.MarkdownString(lines.filter(Boolean).join('  \n'))
 }

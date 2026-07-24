@@ -10,7 +10,7 @@ let status: vscode.StatusBarItem
 let gen = 0
 
 export function activate(context: vscode.ExtensionContext): void {
-  decorator = new BlameDecorator(context.extensionUri)
+  decorator = new BlameDecorator()
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
   status.command = 'gitBlameAnnotate.toggle'
   status.tooltip = '切换 Git Blame 注解'
@@ -71,7 +71,6 @@ async function setActive(active: boolean): Promise<void> {
     return
   }
 
-  // 立刻响应右键，再后台跑 blame（避免卡顿感）
   enabled.set(editor, true)
   await vscode.commands.executeCommand('setContext', CTX, true)
   status.text = '$(sync~spin) Blame…'
