@@ -5,7 +5,7 @@ import { BlameDecorator, registerBlameHover } from './decorate'
 const CTX = 'gitBlameAnnotate.active'
 
 let decorator: BlameDecorator
-/** 按文件 URI 记住开关（不能按 TextEditor：切 tab 时实例会变，状态会丢） */
+/** 按文件 URI 记住开关 */
 const enabledUris = new Set<string>()
 let status: vscode.StatusBarItem
 let gen = 0
@@ -122,7 +122,6 @@ async function refresh(editor: vscode.TextEditor): Promise<void> {
     if (my !== gen || !enabledUris.has(key)) {
       return
     }
-    // 编辑器可能已切走，只画仍对应同一文件的 editor
     if (editor.document.uri.toString() !== key) {
       return
     }

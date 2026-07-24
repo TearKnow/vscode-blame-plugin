@@ -2,10 +2,9 @@ import * as vscode from 'vscode'
 import type { BlameLine } from './blame'
 import { HEAT_LEVELS, heatBorder, heatLevel } from './colors'
 
-/** 色条宽度（左边框，不占可编辑字符，光标进不去） */
+/** 左边框色条：编辑时不跟光标，也不会一改就闪躲 */
 const BAR_PX = 18
 
-/** uri -> (0-based line -> blame) */
 const blameCache = new Map<string, Map<number, BlameLine>>()
 
 export class BlameDecorator {
@@ -90,14 +89,17 @@ export class BlameDecorator {
   }
 }
 
-/** 悬停行首时显示 Git（可与语言提示叠在一起） */
+const HOVER_CHARS = 3
+
 export function registerBlameHover(isEnabledUri: (uri: string) => boolean): vscode.Disposable {
   return vscode.languages.registerHoverProvider({ scheme: 'file' }, {
     provideHover(doc, position) {
       if (!isEnabledUri(doc.uri.toString())) {
         return undefined
       }
-      if (position.character !== 0) {
+      const lineLen = doc.lineAt(position.line).text.length
+      const end = Math.min(HOVER_CHARS, Math.max(lineLen, 1))
+      if (position.character >= end) {
         return undefined
       }
       const blame = blameCache.get(doc.uri.toString())?.get(position.line)
@@ -106,7 +108,7 @@ export function registerBlameHover(isEnabledUri: (uri: string) => boolean): vsco
       }
       return new vscode.Hover(
         hoverMarkdown(blame),
-        new vscode.Range(position.line, 0, position.line, 0),
+        new vscode.Range(position.line, 0, position.line, end),
       )
     },
   })

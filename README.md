@@ -1,43 +1,26 @@
 # Git Blame Annotate
 
-行号与代码之间的 **Git Blame 热力色条**（Cursor / VS Code）：越新颜色越深；悬停显示作者、时间、commit；编辑时保留，保存后刷新。
+行号旁 **Git Blame 热力色条**：越新越深；悬停显示作者、时间、commit、提交说明。
 
 ## 效果
 
-- 行号区域 **右键** → `切换 Git Blame 注解` / `隐藏 Git Blame 注解`
-- 行号右侧（代码左侧）显示热力色块
-- **仅悬停色块**时显示：作者、时间、commit、提交说明（悬停代码本身不出 Git 信息）
-- 不插入文字，编辑不受影响；保存后自动重新 `git blame`
+- 行号右键 → `切换 / 隐藏 Git Blame 注解`
+- 行首色条（左边框，编辑时保持显示，不跟光标乱跳）
+- 悬停行首：Git 信息（可与语言提示叠在一起）
+- 保存后重新 `git blame` 刷新
+
+> 色条可能轻微盖住行首几个字，但不写入文件；这是为了编辑时稳定、不闪躲。
 
 ## 安装（VSIX）
 
 1. 扩展面板 → `...` → **Install from VSIX…**
-2. 选择仓库里的 `git-blame-annotate-*.vsix`（当前为 `0.3.15`）
-3. 命令面板执行 **Developer: Reload Window**
+2. 选择 `git-blame-annotate-0.3.18.vsix`
+3. **Developer: Reload Window**
 
-## 本地开发
+## 本地开发 / 打包
 
 ```bash
-cd d:\www\vscode-git-blame-annotate
 npm install
-npm run compile
-```
-
-用 Cursor / VS Code 打开本目录，按 `F5` 启动「Run Extension」，在新窗口打开任意 Git 仓库文件，右键行号即可。
-
-也可命令面板搜索：`Git Blame 注解: 切换 Git Blame 注解`。
-
-## 打包
-
-```bash
 npm run compile
 npx @vscode/vsce package --no-dependencies --allow-missing-repository
 ```
-
-生成的 `git-blame-annotate-x.y.z.vsix` 在项目根目录。
-
-## 说明
-
-- 每个编辑器独立记住开关；切换文件会按该文件状态刷新。
-- 仅支持本地 `file://` 的 Git 跟踪文件；聊天 / Composer 输入框不可用。
-- 未跟踪 / 非 Git 文件会提示失败。
