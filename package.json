@@ -1,8 +1,8 @@
 {
   "name": "git-blame-annotate",
   "displayName": "Git Blame Annotate",
-  "description": "行首 Blame 热力色条；悬停显示作者/时间/commit；保存后刷新",
-  "version": "0.3.3",
+  "description": "行首 Blame 热力色块（仅悬停色块出 Git 信息）；保存后刷新",
+  "version": "0.3.14",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"

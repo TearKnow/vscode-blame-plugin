@@ -10,9 +10,11 @@ export function heatLevel(time: number, min: number, max: number): number {
   return Math.min(HEAT_LEVELS - 1, Math.max(0, level))
 }
 
-/** 行首色条颜色 */
+/** 实心色（不用 rgba，避免 before 背景画不出来 / 叠色） */
+const DARK = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe']
+const LIGHT = ['#1e40af', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd']
+
 export function heatBorder(level: number, dark: boolean): string {
-  const t = level / (HEAT_LEVELS - 1)
-  const a = (0.95 - t * 0.55).toFixed(3)
-  return dark ? `rgba(96, 165, 250, ${a})` : `rgba(37, 99, 235, ${a})`
+  const palette = dark ? DARK : LIGHT
+  return palette[Math.min(level, palette.length - 1)]
 }

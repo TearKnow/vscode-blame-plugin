@@ -1,11 +1,12 @@
 import * as vscode from 'vscode'
 import { blameFile } from './blame'
-import { BlameDecorator } from './decorate'
+import { BlameDecorator, registerBlameHover } from './decorate'
 
 const CTX = 'gitBlameAnnotate.active'
 
 let decorator: BlameDecorator
-let enabled = new WeakMap<vscode.TextEditor, boolean>()
+/** 按文件 URI 记住开关（不能按 TextEditor：切 tab 时实例会变，状态会丢） */
+const enabledUris = new Set<string>()
 let status: vscode.StatusBarItem
 let gen = 0
 
@@ -18,6 +19,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     decorator,
     status,
+    registerBlameHover((uri) => enabledUris.has(uri)),
     vscode.commands.registerCommand('gitBlameAnnotate.toggle', () => {
       void toggle()
     }),
@@ -29,13 +31,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       const editor = vscode.window.activeTextEditor
-      if (editor?.document === doc && enabled.get(editor)) {
+      if (editor?.document === doc && isEnabled(editor)) {
         void refresh(editor)
       }
     }),
     vscode.window.onDidChangeActiveColorTheme(() => {
       const editor = vscode.window.activeTextEditor
-      if (editor && enabled.get(editor)) {
+      if (editor && isEnabled(editor)) {
         void refresh(editor)
       }
     }),
@@ -48,12 +50,20 @@ export function deactivate(): void {
   decorator?.dispose()
 }
 
+function uriKey(editor: vscode.TextEditor): string {
+  return editor.document.uri.toString()
+}
+
+function isEnabled(editor: vscode.TextEditor): boolean {
+  return enabledUris.has(uriKey(editor))
+}
+
 async function toggle(): Promise<void> {
   const editor = vscode.window.activeTextEditor
   if (!editor) {
     return
   }
-  await setActive(!enabled.get(editor))
+  await setActive(!isEnabled(editor))
 }
 
 async function setActive(active: boolean): Promise<void> {
@@ -64,14 +74,14 @@ async function setActive(active: boolean): Promise<void> {
 
   if (!active) {
     gen += 1
-    enabled.set(editor, false)
+    enabledUris.delete(uriKey(editor))
     decorator.clear(editor)
     await vscode.commands.executeCommand('setContext', CTX, false)
     status.hide()
     return
   }
 
-  enabled.set(editor, true)
+  enabledUris.add(uriKey(editor))
   await vscode.commands.executeCommand('setContext', CTX, true)
   status.text = '$(sync~spin) Blame…'
   status.show()
@@ -84,9 +94,10 @@ async function onEditor(editor: vscode.TextEditor | undefined): Promise<void> {
     status.hide()
     return
   }
-  if (enabled.get(editor)) {
+  if (isEnabled(editor)) {
     status.text = '$(sync~spin) Blame…'
     status.show()
+    await vscode.commands.executeCommand('setContext', CTX, true)
     void refresh(editor)
   } else {
     decorator.clear(editor)
@@ -97,8 +108,9 @@ async function onEditor(editor: vscode.TextEditor | undefined): Promise<void> {
 
 async function refresh(editor: vscode.TextEditor): Promise<void> {
   const my = ++gen
+  const key = uriKey(editor)
   if (editor.document.uri.scheme !== 'file') {
-    enabled.set(editor, false)
+    enabledUris.delete(key)
     await vscode.commands.executeCommand('setContext', CTX, false)
     status.hide()
     vscode.window.showWarningMessage('Git Blame 仅支持本地文件')
@@ -107,20 +119,28 @@ async function refresh(editor: vscode.TextEditor): Promise<void> {
 
   try {
     const lines = await blameFile(editor.document.uri.fsPath)
-    if (my !== gen || !enabled.get(editor)) {
+    if (my !== gen || !enabledUris.has(key)) {
+      return
+    }
+    // 编辑器可能已切走，只画仍对应同一文件的 editor
+    if (editor.document.uri.toString() !== key) {
       return
     }
     decorator.apply(editor, lines)
-    status.text = '$(git-commit) Blame On'
-    status.show()
+    if (vscode.window.activeTextEditor?.document.uri.toString() === key) {
+      status.text = '$(git-commit) Blame On'
+      status.show()
+    }
   } catch (error) {
     if (my !== gen) {
       return
     }
-    enabled.set(editor, false)
+    enabledUris.delete(key)
     decorator.clear(editor)
-    await vscode.commands.executeCommand('setContext', CTX, false)
-    status.hide()
+    if (vscode.window.activeTextEditor?.document.uri.toString() === key) {
+      await vscode.commands.executeCommand('setContext', CTX, false)
+      status.hide()
+    }
     const msg = error instanceof Error ? error.message : String(error)
     vscode.window.showErrorMessage(`Git Blame 失败: ${msg}`)
   }

@@ -5,14 +5,14 @@
 ## 效果
 
 - 行号区域 **右键** → `切换 Git Blame 注解` / `隐藏 Git Blame 注解`
-- 行号右侧（代码左侧）显示热力色条
-- 悬停色条：作者、时间、commit 短哈希、提交说明
+- 行号右侧（代码左侧）显示热力色块
+- **仅悬停色块**时显示：作者、时间、commit、提交说明（悬停代码本身不出 Git 信息）
 - 不插入文字，编辑不受影响；保存后自动重新 `git blame`
 
 ## 安装（VSIX）
 
 1. 扩展面板 → `...` → **Install from VSIX…**
-2. 选择仓库里的 `git-blame-annotate-*.vsix`（当前为 `0.3.3`）
+2. 选择仓库里的 `git-blame-annotate-*.vsix`（当前为 `0.3.14`）
 3. 命令面板执行 **Developer: Reload Window**
 
 ## 本地开发

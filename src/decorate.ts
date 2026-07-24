@@ -2,6 +2,12 @@ import * as vscode from 'vscode'
 import type { BlameLine } from './blame'
 import { HEAT_LEVELS, heatBorder, heatLevel } from './colors'
 
+/** 色条宽度：before 占位把代码顶开，不压在字上面 */
+const BAR_PX = 18
+
+/** uri -> (0-based line -> blame) */
+const blameCache = new Map<string, Map<number, BlameLine>>()
+
 export class BlameDecorator {
   private readonly types: vscode.TextEditorDecorationType[] = []
   private dark = false
@@ -11,12 +17,14 @@ export class BlameDecorator {
     if (!editor) {
       return
     }
+    blameCache.delete(editor.document.uri.toString())
     for (const type of this.types) {
       editor.setDecorations(type, [])
     }
   }
 
   dispose(): void {
+    blameCache.clear()
     for (const type of this.types) {
       type.dispose()
     }
@@ -36,6 +44,7 @@ export class BlameDecorator {
 
     const groups: vscode.DecorationOptions[][] = Array.from({ length: HEAT_LEVELS }, () => [])
     const lineCount = editor.document.lineCount
+    const byLine = new Map<number, BlameLine>()
 
     for (const blame of blameLines) {
       const lineIndex = blame.line - 1
@@ -43,13 +52,15 @@ export class BlameDecorator {
         continue
       }
 
+      byLine.set(lineIndex, blame)
       const level = heatLevel(blame.authorTime, min, max)
-      const end = Math.min(1, editor.document.lineAt(lineIndex).text.length)
+      // 不挂 hoverMessage：before 色块上装饰 hover 常点不中，改由 HoverProvider 处理
       groups[level].push({
-        range: new vscode.Range(lineIndex, 0, lineIndex, end),
-        hoverMessage: hoverText(blame),
+        range: new vscode.Range(lineIndex, 0, lineIndex, 0),
       })
     }
+
+    blameCache.set(editor.document.uri.toString(), byLine)
 
     for (let level = 0; level < HEAT_LEVELS; level += 1) {
       editor.setDecorations(this.types[level], groups[level])
@@ -68,23 +79,51 @@ export class BlameDecorator {
     this.ready = true
 
     for (let level = 0; level < HEAT_LEVELS; level += 1) {
+      const color = heatBorder(level, dark)
       this.types.push(
         vscode.window.createTextEditorDecorationType({
-          isWholeLine: true,
-          borderWidth: '0 0 0 14px',
-          borderStyle: 'solid',
-          borderColor: heatBorder(level, dark),
+          before: {
+            contentText: '\u00a0',
+            width: `${BAR_PX}px`,
+            backgroundColor: color,
+            margin: '0 6px 0 0',
+          },
         }),
       )
     }
   }
 }
 
-function hoverText(blame: BlameLine): vscode.MarkdownString {
+/** 行首（含色条悬停映射到的位置）显示 Git；字符更靠右则不抢语言提示 */
+export function registerBlameHover(isEnabledUri: (uri: string) => boolean): vscode.Disposable {
+  return vscode.languages.registerHoverProvider({ scheme: 'file' }, {
+    provideHover(doc, position) {
+      if (!isEnabledUri(doc.uri.toString())) {
+        return undefined
+      }
+      // 色条在行首 before；悬停色块时编辑器给出的 position.character 一般为 0
+      if (position.character !== 0) {
+        return undefined
+      }
+      const blame = blameCache.get(doc.uri.toString())?.get(position.line)
+      if (!blame) {
+        return undefined
+      }
+      return new vscode.Hover(
+        hoverMarkdown(blame),
+        new vscode.Range(position.line, 0, position.line, 0),
+      )
+    },
+  })
+}
+
+function hoverMarkdown(blame: BlameLine): vscode.MarkdownString {
   const time = blame.authorTime ? new Date(blame.authorTime).toLocaleString() : ''
-  const lines = [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``]
-  if (blame.summary.trim()) {
-    lines.push(blame.summary.trim())
-  }
-  return new vscode.MarkdownString(lines.filter(Boolean).join('  \n'))
+  const head = [`**${blame.author}**`, time, `\`${blame.commit.slice(0, 8)}\``]
+    .filter(Boolean)
+    .join(' · ')
+  const summary = blame.summary.trim()
+  const md = new vscode.MarkdownString(summary ? `${head}  \n${summary}` : head)
+  md.isTrusted = false
+  return md
 }
